@@ -1,13 +1,7 @@
-cryptography
-fire
-install_playwright
-jsonschema
-numpy<=2.2.6
-pandas
-pillow
-playwright==1.52.0
-pydantic>=2.10.6
-requests
-retry
-pytz
-strands-agents-tools
+# Core Nova Act dependencies
+nova-act>=1.0.0
+pydantic>=2.0.0
+
+# For samples and advanced use cases
+python-dateutil>=2.8.0
+requests>=2.28.0

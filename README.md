@@ -1,8 +1,31 @@
-# Nova Act
+# Nova Act - Intelligent Web Browser Automation
 
-A Python SDK for Amazon Nova Act.
+A Python SDK for Amazon Nova Act that enables reliable web browser automation using AI.
 
-Nova Act is an early research preview of an SDK + model for building agents designed to reliably take actions in web browsers. Building with the SDK enables developers to break down complex workflows into smaller, reliable, commands, add more detail where needed, call APIs, and intersperse direct browser manipulation. Developers can interleave Python code, whether it be tests, breakpoints, asserts, or threadpooling for parallelization. Read more about the announcement: https://labs.amazon.science/blog/nova-act.
+Nova Act is an early research preview of an SDK + model for building agents designed to reliably take actions in web browsers. Building with the SDK enables developers to break down complex workflows into smaller, reliable commands, add more detail where needed, call APIs, and intersperse direct browser manipulation.
+
+## 🚀 Key Features
+
+- **AI-Powered Automation**: Natural language instructions for web interactions
+- **Reliable Execution**: Break complex tasks into manageable steps
+- **Parallel Processing**: Run multiple browser sessions concurrently
+- **Production Ready**: Comprehensive error handling and reporting
+- **Multi-Industry**: Samples for e-commerce, research, real estate, and more
+
+## 📁 Project Structure
+
+```
+nova-act/
+├── samples/                    # Comprehensive use case samples
+│   ├── ecommerce/             # E-commerce automation
+│   ├── data_extraction/       # Web scraping & data collection
+│   ├── real_estate/           # Property market analysis
+│   ├── automation/            # Form & workflow automation
+│   ├── research/              # Academic research tools
+│   └── testing/               # Web application testing
+├── src/nova_act/              # Core Nova Act package
+└── README.md                  # This file
+```
 
 >We are now working with select customers to productionize their agents, with capabilities including [AWS IAM authentication](https://aws.amazon.com/iam/), [Amazon S3](https://aws.amazon.com/s3/) secure storage, and integration with the [Amazon Bedrock AgentCore Browser](https://aws.amazon.com/bedrock/agentcore). Learn more in our [blog post](https://labs.amazon.science/blog/prototype-to-production) and join our [waitlist](https://amazonexteu.qualtrics.com/jfe/form/SV_9siTXCFdKHpdwCa).
 
@@ -39,95 +62,75 @@ Amazon Nova Act is an experimental SDK. When using Nova Act, please keep in mind
 * [Reference: Customizing the browser actuation](#actuating-the-browser)
 * [Reference: Viewing a session that is running in headless mode](#viewing-a-session-that-is-running-in-headless-mode)
 
-## Pre-requisites
+## 🚀 Quick Start
 
-1. Operating System: MacOS Sierra+, Ubuntu 22.04+, WSL2 or Windows 10+
-2. Python: 3.10 or above
-
-> **Note:** Nova Act supports English.
-
-## Set Up
-
-### Authentication
-
-#### API Key Authentication
-
-
+### 1. Get Your API Key
 Navigate to https://nova.amazon.com/act and generate an API key.
 
-To save it as an environment variable, execute in the terminal:
-```sh
+```bash
 export NOVA_ACT_API_KEY="your_api_key"
 ```
 
-
-### Installation
-
+### 2. Install Nova Act
 ```bash
 pip install nova-act
 ```
 
-
-Alternatively, you can build `nova-act`. Clone this repo, and then:
-```sh
-pip install .
-```
-
-#### [Optional] Install Google Chrome
-Nova Act works best with Google Chrome but does not have permission to install this browser. You may skip this step if you already have Google Chrome installed or are fine with using Chromium. Otherwise, you can install Google Chrome by running the following command in the same environment where you installed Nova Act. For more information, visit https://playwright.dev/python/docs/browsers#google-chrome--microsoft-edge.
-```bash
-playwright install chrome
-```
-
-
-## Quick Start: ordering a coffee maker on Amazon
-
-*Note: The first time you run NovaAct, it may take 1 to 2 minutes to start. This is because NovaAct needs to [install Playwright modules](https://playwright.dev/python/docs/browsers#install-browsers). Subsequent runs will only take a few seconds to start. This functionality can be toggled off by setting the `NOVA_ACT_SKIP_PLAYWRIGHT_INSTALL` environment variable.*
-
-### Script mode
-
+### 3. Run Your First Automation
 ```python
 from nova_act import NovaAct
 
 with NovaAct(starting_page="https://www.amazon.com") as nova:
     nova.act("search for a coffee maker")
     nova.act("select the first result")
-    nova.act("scroll down or up until you see 'add to cart' and then click 'add to cart'")
+    nova.act("scroll down until you see 'add to cart' and click it")
 ```
 
-The SDK will (1) open Chrome, (2) navigate to a coffee maker product detail page on Amazon.com and add it to the cart, and then (3) close Chrome. Details of the run will be printed as console log messages.
+### 4. Explore Comprehensive Samples
+```bash
+# Quick start guide
+python samples/quick_start.py
 
-Refer to the section [Initializing NovaAct](#initializing-novaact) to learn about other runtime options that can be passed into NovaAct.
+# E-commerce price monitoring
+python samples/ecommerce/product_price_monitor.py
 
-### Interactive mode
+# News aggregation and analysis
+python samples/data_extraction/news_aggregator.py
 
-_**NOTE**: NovaAct does not yet support `ipython`; for now, use your standard Python shell._
-
-Using interactive Python is a nice way to experiment:
-
-```sh
-% python
-Python 3.10.16 (main, Dec  3 2024, 17:27:57) [Clang 16.0.0 (clang-1600.0.26.4)] on darwin
-Type "help", "copyright", "credits" or "license" for more information.
->>> from nova_act import NovaAct
->>> nova = NovaAct(starting_page="https://www.amazon.com")
->>> nova.start()
->>> nova.act("search for a coffee maker")
+# Real estate market analysis
+python samples/real_estate/property_market_analyzer.py
 ```
 
-Once the agent completes the step above, you can enter the next step:
+## 📊 Sample Categories
 
-```sh
->>> nova.act("select the first result")
-```
+### 🛒 **E-commerce**
+- **Product Price Monitor**: Track prices across multiple sites with history analysis
+- **Competitor Analysis**: Compare products and pricing strategies across platforms
 
-Feel free to manipulate the browser in between these `act()` calls as well, but please don't interact with the browser when an `act()` is running because the underlying model will not know what you've changed!
+### 📈 **Data Extraction**
+- **News Aggregator**: Collect and analyze news from multiple sources with sentiment analysis
+- **Job Market Analyzer**: Extract job postings and analyze market trends and salaries
 
-### Samples
+### 🏠 **Real Estate**
+- **Property Market Analyzer**: Analyze real estate listings and market trends across platforms
 
-The [samples](./src/nova_act/samples) folder contains several examples of using Nova Act to complete various tasks, including:
-* search for apartments on a real estate website, search for each apartment's distance from a train station, and combine these into a single result set. [This sample](./src/nova_act/samples/apartments_caltrain.py) demonstrates running multiple NovaActs in parallel (more detail below).
-* order a meal from Sweetgreen and have it delivered. [This sample](./src/nova_act/samples/order_salad.py) demonstrates how to override the `user_data_dir` to provide a browser that is authenticated to order.sweetgreen.com (more detail below).
+### 🤖 **Automation**
+- **Form Automation**: Intelligent form filling with validation handling across different websites
+
+### 🔬 **Research**
+- **Academic Research Assistant**: Automate literature searches and citation analysis
+
+### 🧪 **Testing**
+- **Web App Tester**: Comprehensive web application testing with automated reporting
+
+## 🛠️ Key Features of Samples
+
+- **Parallel Processing**: Concurrent operations across multiple sites using ThreadPoolExecutor
+- **Data Validation**: Structured data extraction with Pydantic models
+- **Error Handling**: Robust exception handling and graceful failure recovery
+- **Comprehensive Reporting**: JSON reports with detailed analytics and insights
+- **Easy Customization**: Configurable parameters for different use cases
+- **Production Ready**: Best practices and patterns for real-world deployment
 
 ## How to prompt act()
 
