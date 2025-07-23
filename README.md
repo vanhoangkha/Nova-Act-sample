@@ -62,6 +62,34 @@ Amazon Nova Act is an experimental SDK. When using Nova Act, please keep in mind
 * [Reference: Customizing the browser actuation](#actuating-the-browser)
 * [Reference: Viewing a session that is running in headless mode](#viewing-a-session-that-is-running-in-headless-mode)
 
+## 🇻🇳 Vietnamese Market Support
+
+Nova Act now includes specialized samples for the Vietnamese market, featuring:
+
+- **Vietnamese E-commerce**: Shopee, Lazada, Tiki, Sendo integration
+- **Vietnamese News**: VnExpress, Tuoi Tre, Thanh Nien, Dan Tri aggregation  
+- **Vietnamese Jobs**: TopCV, VietnamWorks, CareerBuilder, ITviec analysis
+- **Vietnamese Real Estate**: Batdongsan.com.vn, Nhadat24h.net, Alonhadat.com.vn
+- **VND Currency Support**: Proper handling of Vietnamese Dong pricing
+- **Cultural Features**: Feng shui analysis, Vietnamese legal status (sổ đỏ/sổ hồng)
+
+### Vietnamese Samples
+```bash
+# Vietnamese e-commerce price monitoring
+python samples/ecommerce/vietnam_price_monitor.py
+
+# Vietnamese news aggregation
+python samples/data_extraction/vietnam_news_aggregator.py
+
+# Vietnamese job market analysis
+python samples/data_extraction/vietnam_job_market_analyzer.py
+
+# Vietnamese real estate analysis
+python samples/real_estate/vietnam_property_analyzer.py
+```
+
+See [samples/README_VIETNAM.md](samples/README_VIETNAM.md) for detailed Vietnamese documentation.
+
 ## 🚀 Quick Start
 
 ### 1. Get Your API Key
