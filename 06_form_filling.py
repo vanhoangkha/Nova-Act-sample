@@ -1,474 +1,621 @@
 #!/usr/bin/env python3
 """
-Nova Act Demo: Form Filling and Data Entry
-==========================================
+Nova Act Demo: Enhanced Form Filling
+====================================
 
-This demo shows how to fill out various types of forms using Nova Act,
-including text inputs, dropdowns, checkboxes, radio buttons, and date pickers.
+This demo shows how to handle complex form filling operations with Nova Act,
+including adaptive field detection, validation, and error recovery.
 """
 
 import os
 import sys
-from datetime import datetime, timedelta
+import time
+from typing import Dict, Any, List
 from nova_act import NovaAct, BOOL_SCHEMA
 
-def basic_contact_form_demo():
-    """
-    Demo for filling out a basic contact form
-    """
-    print("📝 Starting Basic Contact Form Demo")
-    print("=" * 40)
-    
-    # Sample contact information
-    contact_info = {
-        "first_name": "John",
-        "last_name": "Doe",
-        "email": "john.doe@example.com",
-        "phone": "(555) 123-4567",
-        "company": "Acme Corporation",
-        "message": "This is a test message from Nova Act automation demo."
-    }
-    
-    try:
-        with NovaAct(
-            starting_page="https://www.w3schools.com/html/html_forms.asp",
-            logs_directory="./demo/logs/contact_form"
-        ) as nova:
-            print("🌐 Navigating to form page...")
-            
-            # Look for a contact form or create a test scenario
-            nova.act("scroll down to find any form with input fields")
-            
-            # Fill out form fields step by step
-            print("✍️ Filling out contact form...")
-            
-            # First name
-            nova.act(f"find the first name field and enter '{contact_info['first_name']}'")
-            
-            # Last name
-            nova.act(f"find the last name field and enter '{contact_info['last_name']}'")
-            
-            # Email
-            nova.act(f"find the email field and enter '{contact_info['email']}'")
-            
-            # Phone (if available)
-            nova.act(f"if there's a phone field, enter '{contact_info['phone']}'")
-            
-            # Message/Comments
-            nova.act(f"find a message or comments field and enter '{contact_info['message']}'")
-            
-            # Verify form completion
-            result = nova.act("Are all the form fields filled out correctly?", schema=BOOL_SCHEMA)
-            
-            if result.matches_schema and result.parsed_response:
-                print("✅ Contact form filled successfully!")
-                
-                # Submit form (but don't actually submit in demo)
-                print("📤 Form ready for submission (not submitting in demo)")
-                return True
-            else:
-                print("❌ Form filling incomplete or incorrect")
-                return False
-                
-    except Exception as e:
-        print(f"❌ Error during contact form demo: {e}")
-        return False
+# Import our enhanced framework
+from demo_framework import BaseDemo, DemoResult
+from demo_framework.multi_selector import SelectorBuilder
 
-def registration_form_demo():
-    """
-    Demo for filling out a user registration form
-    """
-    print("\n👤 Starting Registration Form Demo")
-    print("=" * 40)
-    
-    # Sample registration data
-    registration_data = {
-        "username": "johndoe123",
-        "email": "john.doe@example.com",
-        "password": "SecurePassword123!",
-        "confirm_password": "SecurePassword123!",
-        "first_name": "John",
-        "last_name": "Doe",
-        "birth_date": "01/15/1990",
-        "gender": "Male",
-        "country": "United States",
-        "agree_terms": True
-    }
-    
-    try:
-        with NovaAct(
-            starting_page="https://demo.testfire.net/register.jsp",
-            logs_directory="./demo/logs/registration_form"
-        ) as nova:
-            print("🌐 Navigating to registration page...")
-            
-            # Fill registration form
-            print("✍️ Filling registration form...")
-            
-            # Username
-            nova.act(f"find the username field and enter '{registration_data['username']}'")
-            
-            # Email
-            nova.act(f"find the email field and enter '{registration_data['email']}'")
-            
-            # Password
-            nova.act("click on the password field")
-            nova.page.keyboard.type(registration_data['password'])
-            
-            # Confirm password
-            nova.act("click on the confirm password field")
-            nova.page.keyboard.type(registration_data['confirm_password'])
-            
-            # Personal information
-            nova.act(f"if there's a first name field, enter '{registration_data['first_name']}'")
-            nova.act(f"if there's a last name field, enter '{registration_data['last_name']}'")
-            
-            # Date of birth (if available)
-            nova.act(f"if there's a date of birth field, enter '{registration_data['birth_date']}'")
-            
-            # Gender dropdown (if available)
-            nova.act(f"if there's a gender dropdown, select '{registration_data['gender']}'")
-            
-            # Country dropdown (if available)
-            nova.act(f"if there's a country dropdown, select '{registration_data['country']}'")
-            
-            # Terms and conditions checkbox
-            nova.act("if there's a terms and conditions checkbox, check it")
-            
-            # Verify form completion
-            result = nova.act("Is the registration form completely filled out?", schema=BOOL_SCHEMA)
-            
-            if result.matches_schema and result.parsed_response:
-                print("✅ Registration form filled successfully!")
-                return True
-            else:
-                print("❌ Registration form incomplete")
-                return False
-                
-    except Exception as e:
-        print(f"❌ Error during registration form demo: {e}")
-        return False
 
-def survey_form_demo():
-    """
-    Demo for filling out a survey with various input types
-    """
-    print("\n📊 Starting Survey Form Demo")
-    print("=" * 35)
+class FormFillingDemo(BaseDemo):
+    """Enhanced form filling demo with adaptive field detection."""
     
-    # Sample survey responses
-    survey_data = {
-        "satisfaction": "Very Satisfied",
-        "rating": "5",
-        "feedback": "The service was excellent and exceeded my expectations.",
-        "recommend": True,
-        "improvements": ["Customer Service", "Website Design"],
-        "contact_method": "Email"
-    }
+    def __init__(self, config: Dict[str, Any] = None):
+        super().__init__(config)
+        self.steps_total = 5  # Setup, Form site selection, Field detection, Form filling, Validation
+        
+    def setup(self) -> bool:
+        """Setup demo environment and validate prerequisites."""
+        self.logger.info("Setting up Form Filling Demo")
+        
+        # Check API key
+        if not os.getenv('NOVA_ACT_API_KEY'):
+            self.logger.error("NOVA_ACT_API_KEY environment variable not set")
+            return False
+        
+        return True
     
-    try:
-        with NovaAct(
-            starting_page="https://forms.gle/sample-survey",  # Replace with actual survey
-            logs_directory="./demo/logs/survey_form"
-        ) as nova:
-            print("🌐 Loading survey form...")
+    def get_fallback_sites(self) -> List[str]:
+        """Get fallback sites for form filling."""
+        return [
+            "https://httpbin.org/forms/post",
+            "https://example.com",
+            "https://httpbin.org/html"
+        ]
+    
+    def execute_steps(self) -> Dict[str, Any]:
+        """Execute the main demo steps."""
+        extracted_data = {}
+        
+        try:
+            # Step 1: Choose form site
+            site_info = self._step_choose_form_site()
+            extracted_data.update(site_info)
+            self.increment_step("Form site selection completed")
             
-            # Handle different types of form elements
-            print("✍️ Filling survey responses...")
+            # Step 2: Analyze form structure
+            form_analysis = self._step_analyze_form(site_info["target_site"])
+            extracted_data.update(form_analysis)
+            self.increment_step("Form analysis completed")
             
-            # Radio buttons for satisfaction
-            nova.act(f"select '{survey_data['satisfaction']}' for the satisfaction question")
+            # Step 3: Fill form fields
+            filling_result = self._step_fill_form(site_info["target_site"], form_analysis.get("form_fields", []))
+            extracted_data.update(filling_result)
+            self.increment_step("Form filling completed")
             
-            # Rating scale
-            nova.act(f"select rating '{survey_data['rating']}' out of 5 stars")
+            # Step 4: Validate form data
+            validation_result = self._step_validate_form(site_info["target_site"])
+            extracted_data.update(validation_result)
+            self.increment_step("Form validation completed")
             
-            # Text area for feedback
-            nova.act(f"find the feedback text area and enter: '{survey_data['feedback']}'")
+            # Step 5: Handle form submission (demo mode)
+            submission_result = self._step_handle_submission(site_info["target_site"])
+            extracted_data.update(submission_result)
+            self.increment_step("Form submission handling completed")
             
-            # Yes/No question
-            if survey_data['recommend']:
-                nova.act("select 'Yes' for the recommendation question")
-            else:
-                nova.act("select 'No' for the recommendation question")
-            
-            # Multiple choice checkboxes
-            for improvement in survey_data['improvements']:
-                nova.act(f"check the checkbox for '{improvement}' in the improvements section")
-            
-            # Dropdown for contact method
-            nova.act(f"select '{survey_data['contact_method']}' from the contact method dropdown")
-            
-            # Verify survey completion
-            result = nova.act("Are all survey questions answered?", schema=BOOL_SCHEMA)
-            
-            if result.matches_schema and result.parsed_response:
-                print("✅ Survey completed successfully!")
-                return True
-            else:
-                print("❌ Survey incomplete")
-                return False
+        except Exception as e:
+            self.logger.error(f"Error during form filling: {str(e)}")
+            raise
+        
+        return extracted_data
+    
+    def _step_choose_form_site(self) -> Dict[str, Any]:
+        """Step 1: Choose appropriate site for form filling demo."""
+        self.logger.log_step(1, "Form Site Selection", "starting")
+        
+        # Sites with forms for testing
+        form_sites = [
+            {
+                "url": "https://httpbin.org/forms/post",
+                "name": "HTTPBin Form",
+                "type": "test_form",
+                "has_multiple_fields": True
+            },
+            {
+                "url": "https://httpbin.org/html",
+                "name": "HTTPBin HTML",
+                "type": "simple_html",
+                "has_multiple_fields": False
+            }
+        ]
+        
+        # Choose first accessible site
+        target_site = None
+        for site in form_sites:
+            if self.config_manager.validate_site_access(site["url"]):
+                target_site = site
+                break
+        
+        if not target_site:
+            # Use fallback
+            fallback_sites = self.get_fallback_sites()
+            target_site = {
+                "url": fallback_sites[0],
+                "name": "Fallback Form Site",
+                "type": "fallback",
+                "has_multiple_fields": True
+            }
+            self.add_warning("Using fallback site for form filling demo")
+        
+        self.logger.log_step(1, "Form Site Selection", "completed", f"Selected {target_site['name']}")
+        self.logger.log_data_extraction("target_site", target_site, "site_selection")
+        
+        return {"target_site": target_site}
+    
+    def _step_analyze_form(self, site_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Step 2: Analyze form structure and detect fields."""
+        self.logger.log_step(2, "Form Analysis", "starting")
+        
+        try:
+            with NovaAct(
+                starting_page=site_info["url"],
+                logs_directory="./demo/logs/form_analysis"
+            ) as nova:
                 
-    except Exception as e:
-        print(f"❌ Error during survey demo: {e}")
-        return False
-
-def date_picker_demo():
-    """
-    Demo for handling date picker controls
-    """
-    print("\n📅 Starting Date Picker Demo")
-    print("=" * 35)
-    
-    # Calculate dates for demo
-    today = datetime.now()
-    start_date = today + timedelta(days=7)  # One week from now
-    end_date = today + timedelta(days=14)   # Two weeks from now
-    
-    try:
-        with NovaAct(
-            starting_page="https://jqueryui.com/datepicker/",
-            logs_directory="./demo/logs/date_picker"
-        ) as nova:
-            print("🌐 Navigating to date picker demo...")
-            
-            # Handle date picker
-            print("📅 Working with date picker...")
-            
-            # Click on date input to open picker
-            nova.act("click on the date input field to open the date picker")
-            
-            # Select start date
-            nova.act(f"select {start_date.strftime('%B %d, %Y')} from the date picker")
-            
-            # If there's an end date field
-            nova.act("if there's an end date field, click on it")
-            nova.act(f"select {end_date.strftime('%B %d, %Y')} for the end date")
-            
-            # Verify dates are selected
-            result = nova.act("Are the dates properly selected in the date fields?", schema=BOOL_SCHEMA)
-            
-            if result.matches_schema and result.parsed_response:
-                print("✅ Date picker demo completed successfully!")
-                print(f"📅 Start date: {start_date.strftime('%B %d, %Y')}")
-                print(f"📅 End date: {end_date.strftime('%B %d, %Y')}")
-                return True
-            else:
-                print("❌ Date selection incomplete")
-                return False
+                # Detect form fields using multiple strategies
+                form_fields = []
                 
-    except Exception as e:
-        print(f"❌ Error during date picker demo: {e}")
-        return False
+                # Strategy 1: Look for common form elements
+                common_fields = self._detect_common_fields(nova)
+                form_fields.extend(common_fields)
+                
+                # Strategy 2: Use Playwright to inspect form elements
+                playwright_fields = self._detect_playwright_fields(nova)
+                form_fields.extend(playwright_fields)
+                
+                # Strategy 3: Use Nova Act to describe the form
+                description_fields = self._detect_description_fields(nova)
+                form_fields.extend(description_fields)
+                
+                # Remove duplicates and organize
+                unique_fields = self._deduplicate_fields(form_fields)
+                
+                form_analysis = {
+                    "total_fields_detected": len(unique_fields),
+                    "form_fields": unique_fields,
+                    "detection_methods": ["common_patterns", "playwright_inspection", "ai_description"],
+                    "form_type": site_info.get("type", "unknown")
+                }
+                
+                self.logger.log_step(2, "Form Analysis", "completed", 
+                                   f"Detected {len(unique_fields)} form fields")
+                self.logger.log_data_extraction("form_analysis", form_analysis, "form_detection")
+                
+                return form_analysis
+                
+        except Exception as e:
+            self.logger.log_step(2, "Form Analysis", "failed", str(e))
+            return {
+                "form_fields": [],
+                "analysis_error": str(e),
+                "total_fields_detected": 0
+            }
+    
+    def _detect_common_fields(self, nova) -> List[Dict[str, Any]]:
+        """Detect common form fields using predefined patterns."""
+        common_fields = []
+        
+        # Common field patterns
+        field_patterns = [
+            {"name": "name", "selectors": ["input[name*='name']", "#name", ".name-field"]},
+            {"name": "email", "selectors": ["input[type='email']", "input[name*='email']", "#email"]},
+            {"name": "phone", "selectors": ["input[type='tel']", "input[name*='phone']", "#phone"]},
+            {"name": "message", "selectors": ["textarea", "input[name*='message']", "#message"]},
+            {"name": "subject", "selectors": ["input[name*='subject']", "#subject"]},
+            {"name": "company", "selectors": ["input[name*='company']", "#company"]},
+        ]
+        
+        for pattern in field_patterns:
+            for selector in pattern["selectors"]:
+                try:
+                    elements = nova.page.query_selector_all(selector)
+                    if elements:
+                        common_fields.append({
+                            "name": pattern["name"],
+                            "selector": selector,
+                            "type": "common_pattern",
+                            "found": True,
+                            "count": len(elements)
+                        })
+                        break
+                except:
+                    continue
+        
+        return common_fields
+    
+    def _detect_playwright_fields(self, nova) -> List[Dict[str, Any]]:
+        """Detect form fields using Playwright inspection."""
+        playwright_fields = []
+        
+        try:
+            # Find all input elements
+            inputs = nova.page.query_selector_all("input")
+            for i, input_elem in enumerate(inputs):
+                try:
+                    input_type = input_elem.get_attribute("type") or "text"
+                    input_name = input_elem.get_attribute("name") or f"input_{i}"
+                    input_placeholder = input_elem.get_attribute("placeholder") or ""
+                    
+                    playwright_fields.append({
+                        "name": input_name,
+                        "type": "playwright_input",
+                        "input_type": input_type,
+                        "placeholder": input_placeholder,
+                        "index": i
+                    })
+                except:
+                    continue
+            
+            # Find all textarea elements
+            textareas = nova.page.query_selector_all("textarea")
+            for i, textarea in enumerate(textareas):
+                try:
+                    textarea_name = textarea.get_attribute("name") or f"textarea_{i}"
+                    textarea_placeholder = textarea.get_attribute("placeholder") or ""
+                    
+                    playwright_fields.append({
+                        "name": textarea_name,
+                        "type": "playwright_textarea",
+                        "placeholder": textarea_placeholder,
+                        "index": i
+                    })
+                except:
+                    continue
+            
+            # Find all select elements
+            selects = nova.page.query_selector_all("select")
+            for i, select in enumerate(selects):
+                try:
+                    select_name = select.get_attribute("name") or f"select_{i}"
+                    
+                    playwright_fields.append({
+                        "name": select_name,
+                        "type": "playwright_select",
+                        "index": i
+                    })
+                except:
+                    continue
+                    
+        except Exception as e:
+            self.logger.warning(f"Playwright field detection failed: {e}")
+        
+        return playwright_fields
+    
+    def _detect_description_fields(self, nova) -> List[Dict[str, Any]]:
+        """Detect form fields using AI description."""
+        description_fields = []
+        
+        try:
+            # Ask Nova Act to describe the form
+            result = nova.act("What form fields are visible on this page? List them briefly.")
+            
+            if result.response:
+                # Parse the response to extract field information
+                # This is a simplified approach - in production you'd use more sophisticated parsing
+                response_lower = result.response.lower()
+                
+                field_keywords = ["name", "email", "phone", "message", "subject", "company", "address"]
+                for keyword in field_keywords:
+                    if keyword in response_lower:
+                        description_fields.append({
+                            "name": keyword,
+                            "type": "ai_description",
+                            "mentioned_in_response": True,
+                            "confidence": "medium"
+                        })
+                        
+        except Exception as e:
+            self.logger.warning(f"AI description field detection failed: {e}")
+        
+        return description_fields
+    
+    def _deduplicate_fields(self, fields: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Remove duplicate fields and merge information."""
+        unique_fields = {}
+        
+        for field in fields:
+            field_name = field.get("name", "unknown")
+            
+            if field_name not in unique_fields:
+                unique_fields[field_name] = field
+            else:
+                # Merge information from multiple detection methods
+                existing = unique_fields[field_name]
+                existing["detection_methods"] = existing.get("detection_methods", [])
+                existing["detection_methods"].append(field.get("type", "unknown"))
+                
+                # Prefer more specific information
+                if field.get("selector") and not existing.get("selector"):
+                    existing["selector"] = field["selector"]
+                if field.get("input_type") and not existing.get("input_type"):
+                    existing["input_type"] = field["input_type"]
+        
+        return list(unique_fields.values())
+    
+    def _step_fill_form(self, site_info: Dict[str, Any], form_fields: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Step 3: Fill form fields with test data."""
+        self.logger.log_step(3, "Form Filling", "starting")
+        
+        if not form_fields:
+            self.logger.log_step(3, "Form Filling", "skipped", "No form fields detected")
+            return {"form_filling": {"skipped": True, "reason": "no_fields"}}
+        
+        try:
+            with NovaAct(
+                starting_page=site_info["url"],
+                logs_directory="./demo/logs/form_filling"
+            ) as nova:
+                
+                filling_results = []
+                
+                # Test data for different field types
+                test_data = {
+                    "name": "John Doe",
+                    "email": "john.doe@example.com",
+                    "phone": "555-0123",
+                    "message": "This is a test message from Nova Act demo.",
+                    "subject": "Nova Act Form Filling Demo",
+                    "company": "Demo Company Inc.",
+                    "address": "123 Demo Street, Test City, TC 12345"
+                }
+                
+                for field in form_fields:
+                    field_name = field.get("name", "unknown")
+                    field_result = self._fill_single_field(nova, field, test_data.get(field_name, f"Test {field_name}"))
+                    filling_results.append(field_result)
+                    
+                    # Brief pause between field fills
+                    time.sleep(0.5)
+                
+                successful_fills = len([r for r in filling_results if r.get("success", False)])
+                
+                self.logger.log_step(3, "Form Filling", "completed", 
+                                   f"{successful_fills}/{len(filling_results)} fields filled")
+                
+                return {
+                    "form_filling": {
+                        "results": filling_results,
+                        "successful_count": successful_fills,
+                        "total_fields": len(filling_results)
+                    }
+                }
+                
+        except Exception as e:
+            self.logger.log_step(3, "Form Filling", "failed", str(e))
+            return {"form_filling": {"failed": True, "error": str(e)}}
+    
+    def _fill_single_field(self, nova, field: Dict[str, Any], value: str) -> Dict[str, Any]:
+        """Fill a single form field using multiple strategies."""
+        field_name = field.get("name", "unknown")
+        
+        try:
+            # Strategy 1: Use specific selector if available
+            if field.get("selector"):
+                try:
+                    element = nova.page.query_selector(field["selector"])
+                    if element:
+                        element.fill(value)
+                        return {
+                            "field": field_name,
+                            "success": True,
+                            "method": "direct_selector",
+                            "value": value
+                        }
+                except:
+                    pass
+            
+            # Strategy 2: Use Nova Act natural language
+            try:
+                if field.get("input_type") == "email":
+                    nova.act(f"fill in the email field with {value}")
+                elif field.get("input_type") == "tel":
+                    nova.act(f"fill in the phone number field with {value}")
+                elif field_name == "message" or field.get("type") == "playwright_textarea":
+                    nova.act(f"fill in the message or comment field with: {value}")
+                else:
+                    nova.act(f"fill in the {field_name} field with {value}")
+                
+                return {
+                    "field": field_name,
+                    "success": True,
+                    "method": "natural_language",
+                    "value": value
+                }
+                
+            except Exception as e:
+                # Strategy 3: Generic field filling
+                try:
+                    nova.act(f"find and fill any field related to {field_name} with {value}")
+                    return {
+                        "field": field_name,
+                        "success": True,
+                        "method": "generic_fill",
+                        "value": value
+                    }
+                except:
+                    return {
+                        "field": field_name,
+                        "success": False,
+                        "method": "all_failed",
+                        "error": str(e)
+                    }
+                    
+        except Exception as e:
+            return {
+                "field": field_name,
+                "success": False,
+                "method": "exception",
+                "error": str(e)
+            }
+    
+    def _step_validate_form(self, site_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Step 4: Validate form data after filling."""
+        self.logger.log_step(4, "Form Validation", "starting")
+        
+        try:
+            with NovaAct(
+                starting_page=site_info["url"],
+                logs_directory="./demo/logs/form_validation"
+            ) as nova:
+                
+                validation_results = []
+                
+                # Check if form appears to be filled
+                result = nova.act("Are the form fields filled with data?", schema=BOOL_SCHEMA)
+                form_filled = result.matches_schema and result.parsed_response
+                
+                validation_results.append({
+                    "check": "form_filled",
+                    "result": form_filled,
+                    "method": "ai_validation"
+                })
+                
+                # Check for validation errors
+                result = nova.act("Are there any validation errors or error messages visible?", schema=BOOL_SCHEMA)
+                has_errors = result.matches_schema and result.parsed_response
+                
+                validation_results.append({
+                    "check": "validation_errors",
+                    "result": not has_errors,  # Success if no errors
+                    "method": "error_detection"
+                })
+                
+                # Check if submit button is enabled
+                result = nova.act("Is the submit button enabled and clickable?", schema=BOOL_SCHEMA)
+                submit_enabled = result.matches_schema and result.parsed_response
+                
+                validation_results.append({
+                    "check": "submit_enabled",
+                    "result": submit_enabled,
+                    "method": "button_state"
+                })
+                
+                successful_validations = len([r for r in validation_results if r.get("result", False)])
+                
+                self.logger.log_step(4, "Form Validation", "completed", 
+                                   f"{successful_validations}/{len(validation_results)} validations passed")
+                
+                return {
+                    "form_validation": {
+                        "results": validation_results,
+                        "successful_count": successful_validations,
+                        "total_checks": len(validation_results)
+                    }
+                }
+                
+        except Exception as e:
+            self.logger.log_step(4, "Form Validation", "failed", str(e))
+            return {"form_validation": {"failed": True, "error": str(e)}}
+    
+    def _step_handle_submission(self, site_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Step 5: Handle form submission (demo mode - don't actually submit)."""
+        self.logger.log_step(5, "Form Submission", "starting")
+        
+        try:
+            with NovaAct(
+                starting_page=site_info["url"],
+                logs_directory="./demo/logs/form_submission"
+            ) as nova:
+                
+                # Look for submit button
+                result = nova.act("Can you see a submit button or send button?", schema=BOOL_SCHEMA)
+                submit_button_found = result.matches_schema and result.parsed_response
+                
+                submission_result = {
+                    "submit_button_found": submit_button_found,
+                    "actually_submitted": False,
+                    "demo_mode": True,
+                    "reason": "Demo safety - form not actually submitted"
+                }
+                
+                if submit_button_found:
+                    # For demo purposes, just identify the button but don't click it
+                    nova.act("locate the submit button but do not click it")
+                    self.add_warning("Submit button found but not clicked for demo safety")
+                else:
+                    self.add_warning("No submit button found on the form")
+                
+                self.logger.log_step(5, "Form Submission", "completed", "Demo submission handling completed")
+                
+                return {"form_submission": submission_result}
+                
+        except Exception as e:
+            self.logger.log_step(5, "Form Submission", "failed", str(e))
+            return {"form_submission": {"failed": True, "error": str(e)}}
 
-def complex_form_demo():
-    """
-    Demo for handling a complex multi-step form
-    """
-    print("\n🔄 Starting Complex Multi-Step Form Demo")
+
+def run_form_filling_demo():
+    """Run the form filling demo."""
+    print("📝 Starting Enhanced Form Filling Demo")
     print("=" * 50)
     
-    # Complex form data
-    form_data = {
-        "personal": {
-            "title": "Mr.",
-            "first_name": "John",
-            "last_name": "Doe",
-            "email": "john.doe@example.com",
-            "phone": "(555) 123-4567",
-            "date_of_birth": "01/15/1990"
-        },
-        "address": {
-            "street": "123 Main Street",
-            "city": "Anytown",
-            "state": "California",
-            "zip_code": "12345",
-            "country": "United States"
-        },
-        "preferences": {
-            "newsletter": True,
-            "notifications": ["Email", "SMS"],
-            "language": "English",
-            "timezone": "Pacific Standard Time"
-        }
-    }
+    # Create demo instance
+    demo = FormFillingDemo()
     
-    try:
-        with NovaAct(
-            starting_page="https://example-complex-form.com",  # Replace with actual form
-            logs_directory="./demo/logs/complex_form"
-        ) as nova:
-            print("🌐 Loading complex form...")
+    # Run demo
+    result = demo.run()
+    
+    # Print results
+    if result.success:
+        print("✅ Demo completed successfully!")
+        print(f"⏱️  Execution time: {result.execution_time:.2f} seconds")
+        print(f"📊 Steps completed: {result.steps_completed}/{result.steps_total}")
+        
+        if result.data_extracted:
+            print("\n📋 Form Filling Summary:")
             
-            # Step 1: Personal Information
-            print("👤 Step 1: Personal Information")
+            # Form analysis
+            if "total_fields_detected" in result.data_extracted:
+                fields_count = result.data_extracted["total_fields_detected"]
+                print(f"   🔍 Form fields detected: {fields_count}")
             
-            # Title dropdown
-            nova.act(f"select '{form_data['personal']['title']}' from the title dropdown")
+            # Form filling results
+            if "form_filling" in result.data_extracted:
+                filling = result.data_extracted["form_filling"]
+                if not filling.get("skipped"):
+                    successful = filling.get("successful_count", 0)
+                    total = filling.get("total_fields", 0)
+                    print(f"   ✏️  Fields filled: {successful}/{total}")
             
-            # Name fields
-            nova.act(f"enter '{form_data['personal']['first_name']}' in the first name field")
-            nova.act(f"enter '{form_data['personal']['last_name']}' in the last name field")
+            # Validation results
+            if "form_validation" in result.data_extracted:
+                validation = result.data_extracted["form_validation"]
+                if not validation.get("failed"):
+                    successful = validation.get("successful_count", 0)
+                    total = validation.get("total_checks", 0)
+                    print(f"   ✅ Validation checks: {successful}/{total} passed")
             
-            # Contact information
-            nova.act(f"enter '{form_data['personal']['email']}' in the email field")
-            nova.act(f"enter '{form_data['personal']['phone']}' in the phone field")
-            
-            # Date of birth
-            nova.act(f"enter '{form_data['personal']['date_of_birth']}' in the date of birth field")
-            
-            # Proceed to next step
-            nova.act("click 'Next' or 'Continue' to go to the next step")
-            
-            # Step 2: Address Information
-            print("🏠 Step 2: Address Information")
-            
-            nova.act(f"enter '{form_data['address']['street']}' in the street address field")
-            nova.act(f"enter '{form_data['address']['city']}' in the city field")
-            nova.act(f"select '{form_data['address']['state']}' from the state dropdown")
-            nova.act(f"enter '{form_data['address']['zip_code']}' in the zip code field")
-            nova.act(f"select '{form_data['address']['country']}' from the country dropdown")
-            
-            # Proceed to next step
-            nova.act("click 'Next' or 'Continue' to go to the next step")
-            
-            # Step 3: Preferences
-            print("⚙️ Step 3: Preferences")
-            
-            # Newsletter subscription
-            if form_data['preferences']['newsletter']:
-                nova.act("check the newsletter subscription checkbox")
-            
-            # Notification preferences
-            for notification in form_data['preferences']['notifications']:
-                nova.act(f"check the '{notification}' notification option")
-            
-            # Language and timezone
-            nova.act(f"select '{form_data['preferences']['language']}' from the language dropdown")
-            nova.act(f"select '{form_data['preferences']['timezone']}' from the timezone dropdown")
-            
-            # Final verification
-            result = nova.act("Is the entire form completed correctly across all steps?", schema=BOOL_SCHEMA)
-            
-            if result.matches_schema and result.parsed_response:
-                print("✅ Complex form completed successfully!")
-                return True
-            else:
-                print("❌ Complex form incomplete")
-                return False
-                
-    except Exception as e:
-        print(f"❌ Error during complex form demo: {e}")
-        return False
+            # Submission status
+            if "form_submission" in result.data_extracted:
+                submission = result.data_extracted["form_submission"]
+                button_found = submission.get("submit_button_found", False)
+                print(f"   🚀 Submit button found: {button_found}")
+                print(f"   🛡️  Demo mode: Form not actually submitted")
+    else:
+        print("❌ Demo encountered issues:")
+        for error in result.errors:
+            print(f"   • {error.error_type}: {error.message}")
+    
+    if result.warnings:
+        print("⚠️  Warnings:")
+        for warning in result.warnings:
+            print(f"   • {warning}")
+    
+    print(f"📄 Detailed logs: {result.log_path}")
+    
+    return result
 
-def form_validation_demo():
-    """
-    Demo for handling form validation and error messages
-    """
-    print("\n✅ Starting Form Validation Demo")
-    print("=" * 40)
-    
-    try:
-        with NovaAct(
-            starting_page="https://www.w3schools.com/html/html_form_validation.asp",
-            logs_directory="./demo/logs/form_validation"
-        ) as nova:
-            print("🌐 Loading form validation demo...")
-            
-            # Test form validation by submitting incomplete form
-            print("🧪 Testing form validation...")
-            
-            # Try to submit empty form
-            nova.act("find a form and try to submit it without filling any fields")
-            
-            # Check for validation messages
-            result = nova.act("Are there any validation error messages displayed?", schema=BOOL_SCHEMA)
-            
-            if result.matches_schema and result.parsed_response:
-                print("✅ Form validation working - error messages displayed")
-                
-                # Fill required fields to fix validation errors
-                print("🔧 Fixing validation errors...")
-                
-                nova.act("fill in the required fields to resolve validation errors")
-                
-                # Try submitting again
-                nova.act("submit the form again")
-                
-                # Check if validation passed
-                result2 = nova.act("Did the form submit successfully without validation errors?", schema=BOOL_SCHEMA)
-                
-                if result2.matches_schema and result2.parsed_response:
-                    print("✅ Form validation demo completed successfully!")
-                    return True
-                else:
-                    print("⚠️ Form still has validation issues")
-                    return False
-            else:
-                print("⚠️ No validation messages found")
-                return False
-                
-    except Exception as e:
-        print(f"❌ Error during form validation demo: {e}")
-        return False
 
 def main():
-    """Main function to run all form filling demos"""
-    print("Nova Act Form Filling Demo Suite")
-    print("================================")
+    """Main function to run the demo."""
+    print("Nova Act Enhanced Form Filling Demo")
+    print("=" * 50)
     
-    # Check for API key
-    if not os.getenv('NOVA_ACT_API_KEY'):
-        print("❌ Please set NOVA_ACT_API_KEY environment variable")
-        print("   export NOVA_ACT_API_KEY='your_api_key'")
-        sys.exit(1)
+    # Run the demo
+    result = run_form_filling_demo()
     
-    # Create logs directory
-    os.makedirs("./demo/logs", exist_ok=True)
-    
-    print("\n📝 Form Filling Demo Options:")
-    print("1. Basic contact form")
-    print("2. User registration form")
-    print("3. Survey form with various inputs")
-    print("4. Date picker handling")
-    print("5. Complex multi-step form")
-    print("6. Form validation handling")
-    print("7. Run all demos")
-    
-    choice = input("\nSelect demo (1-7): ").strip()
-    
-    if choice == "1":
-        basic_contact_form_demo()
-    elif choice == "2":
-        registration_form_demo()
-    elif choice == "3":
-        survey_form_demo()
-    elif choice == "4":
-        date_picker_demo()
-    elif choice == "5":
-        complex_form_demo()
-    elif choice == "6":
-        form_validation_demo()
-    elif choice == "7":
-        # Run all demos
-        results = []
-        results.append(basic_contact_form_demo())
-        results.append(registration_form_demo())
-        results.append(survey_form_demo())
-        results.append(date_picker_demo())
-        results.append(complex_form_demo())
-        results.append(form_validation_demo())
-        
-        successful = sum(1 for result in results if result)
-        total = len(results)
-        
-        print(f"\n📊 Form Filling Demo Summary: {successful}/{total} successful")
-        
-        if successful == total:
-            print("🎉 All form filling demos completed successfully!")
-        else:
-            print("⚠️ Some demos encountered issues. Check the logs for details.")
+    if result.success:
+        print("\n🎉 Form filling demo completed successfully!")
+        print("This demo showcased:")
+        print("  • Multi-strategy form field detection")
+        print("  • Adaptive form filling with fallback methods")
+        print("  • Form validation and error checking")
+        print("  • Safe demo mode without actual submission")
+        print("  • Comprehensive logging of form interactions")
     else:
-        print("❌ Invalid choice. Please select 1-7.")
+        print("\n⚠️ Demo encountered some issues, but this demonstrates:")
+        print("  • Robust error handling in form operations")
+        print("  • Graceful degradation when fields can't be detected")
+        print("  • Safe handling of form submission scenarios")
+    
+    print("\n💡 Production Tips:")
+    print("  • Always validate form data before submission")
+    print("  • Implement proper error handling for form validation")
+    print("  • Use secure methods for handling sensitive form data")
+    print("  • Test forms across different browsers and devices")
+    print("  • Implement CAPTCHA handling for production forms")
+
 
 if __name__ == "__main__":
     main()

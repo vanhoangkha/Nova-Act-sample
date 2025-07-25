@@ -1,444 +1,640 @@
 #!/usr/bin/env python3
 """
-Nova Act Demo: Real Estate Search and Analysis
-==============================================
+Nova Act Demo: Enhanced Real Estate Search
+==========================================
 
-This demo shows how to search for properties, extract property details,
-and perform analysis on real estate listings using Nova Act.
-
-Based on the apartments_caltrain.py sample mentioned in the Nova Act README.
+This demo shows how to search for real estate properties with location-aware
+filtering, transportation analysis, and comprehensive property data extraction.
 """
 
 import os
 import sys
-from typing import List, Optional
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
+from typing import Dict, Any, List
+from nova_act import NovaAct, BOOL_SCHEMA
 from pydantic import BaseModel
-from nova_act import NovaAct, ActError
 
-class Property(BaseModel):
+# Import our enhanced framework
+from demo_framework import BaseDemo, DemoResult
+
+
+class PropertyInfo(BaseModel):
+    """Property information model."""
     address: str
     price: str
-    bedrooms: Optional[str] = None
-    bathrooms: Optional[str] = None
-    square_feet: Optional[str] = None
-    description: Optional[str] = None
-    listing_url: Optional[str] = None
+    bedrooms: str = "N/A"
+    bathrooms: str = "N/A"
+    square_feet: str = "N/A"
+    property_type: str = "N/A"
 
-class PropertyList(BaseModel):
-    properties: List[Property]
-    search_location: str
-    total_found: Optional[str] = None
 
-class TransportationInfo(BaseModel):
-    property_address: str
-    nearest_station: Optional[str] = None
-    distance_to_station: Optional[str] = None
-    travel_time: Optional[str] = None
-
-def search_properties_demo():
-    """
-    Demo for searching properties on a real estate website
-    """
-    print("🏠 Starting Property Search Demo")
-    print("=" * 40)
+class RealEstateDemo(BaseDemo):
+    """Enhanced real estate demo with location awareness and transportation analysis."""
     
-    search_locations = ["San Francisco, CA", "Seattle, WA", "Austin, TX"]
-    all_properties = []
-    
-    try:
-        for location in search_locations:
-            print(f"🔍 Searching properties in {location}...")
-            
-            with NovaAct(
-                starting_page="https://www.zillow.com",
-                logs_directory=f"./demo/logs/property_search_{location.replace(', ', '_').replace(' ', '_')}"
-            ) as nova:
-                # Search for properties in the location
-                nova.act(f"search for homes for sale in {location}")
-                
-                # Apply some basic filters
-                nova.act("set price range to $300,000 - $800,000 if filter options are available")
-                nova.act("filter for 2+ bedrooms if filter options are available")
-                
-                # Extract property listings
-                result = nova.act(
-                    f"Extract the first 5 property listings with address, price, bedrooms, bathrooms, and square footage",
-                    schema=PropertyList.model_json_schema()
-                )
-                
-                if result.matches_schema:
-                    property_list = PropertyList.model_validate(result.parsed_response)
-                    property_list.search_location = location
-                    
-                    print(f"✅ Found {len(property_list.properties)} properties in {location}")
-                    
-                    for prop in property_list.properties:
-                        all_properties.append(prop)
-                        print(f"  📍 {prop.address} - {prop.price}")
-                else:
-                    print(f"❌ Failed to extract properties from {location}")
+    def __init__(self, config: Dict[str, Any] = None):
+        super().__init__(config)
+        self.steps_total = 6  # Setup, Site selection, Location search, Property filtering, Transportation analysis, Data extraction
         
-        return all_properties
+    def setup(self) -> bool:
+        """Setup demo environment and validate prerequisites."""
+        self.logger.info("Setting up Real Estate Demo")
         
-    except Exception as e:
-        print(f"❌ Error during property search demo: {e}")
-        return []
-
-def property_details_extraction_demo():
-    """
-    Demo for extracting detailed information from individual property listings
-    """
-    print("\n🔍 Starting Property Details Extraction Demo")
-    print("=" * 55)
+        # Check API key
+        if not os.getenv('NOVA_ACT_API_KEY'):
+            self.logger.error("NOVA_ACT_API_KEY environment variable not set")
+            return False
+        
+        return True
     
-    try:
-        with NovaAct(
-            starting_page="https://www.zillow.com",
-            logs_directory="./demo/logs/property_details"
-        ) as nova:
-            print("🏠 Searching for a specific property...")
-            
-            # Search for properties
-            nova.act("search for homes for sale in San Francisco, CA")
-            
-            # Click on first property for detailed view
-            nova.act("click on the first property listing to view details")
-            
-            # Extract comprehensive property details
-            result = nova.act(
-                """Extract detailed property information including:
-                - Full address
-                - Asking price
-                - Number of bedrooms and bathrooms
-                - Square footage
-                - Lot size
-                - Year built
-                - Property type
-                - Key features or amenities
-                - Property description""",
-                schema=Property.model_json_schema()
-            )
-            
-            if result.matches_schema:
-                property_details = Property.model_validate(result.parsed_response)
-                
-                print("✅ Successfully extracted property details:")
-                print(f"📍 Address: {property_details.address}")
-                print(f"💰 Price: {property_details.price}")
-                if property_details.bedrooms:
-                    print(f"🛏️ Bedrooms: {property_details.bedrooms}")
-                if property_details.bathrooms:
-                    print(f"🚿 Bathrooms: {property_details.bathrooms}")
-                if property_details.square_feet:
-                    print(f"📐 Square Feet: {property_details.square_feet}")
-                if property_details.description:
-                    print(f"📝 Description: {property_details.description[:100]}...")
-                
-                return property_details
-            else:
-                print("❌ Failed to extract property details")
-                return None
-                
-    except Exception as e:
-        print(f"❌ Error during property details extraction: {e}")
-        return None
-
-def transportation_analysis_demo():
-    """
-    Demo for analyzing transportation options for properties
-    """
-    print("\n🚊 Starting Transportation Analysis Demo")
-    print("=" * 50)
+    def get_fallback_sites(self) -> List[str]:
+        """Get fallback sites for real estate operations."""
+        return [
+            "https://example.com",
+            "https://httpbin.org/html"
+        ]
     
-    # Sample properties for transportation analysis
-    sample_properties = [
-        "123 Market Street, San Francisco, CA",
-        "456 Mission Street, San Francisco, CA",
-        "789 Valencia Street, San Francisco, CA"
-    ]
-    
-    transportation_results = []
-    
-    def analyze_property_transportation(property_address: str) -> Optional[TransportationInfo]:
-        """Analyze transportation options for a single property"""
+    def execute_steps(self) -> Dict[str, Any]:
+        """Execute the main demo steps."""
+        extracted_data = {}
+        
         try:
-            with NovaAct(
-                starting_page="https://www.google.com/maps",
-                logs_directory=f"./demo/logs/transport_{property_address.replace(' ', '_').replace(',', '')[:20]}"
-            ) as nova:
-                print(f"🗺️ Analyzing transportation for {property_address}...")
-                
-                # Search for the property address
-                nova.act(f"search for {property_address}")
-                
-                # Look for nearby transit options
-                nova.act("look for nearby public transportation, specifically train or subway stations")
-                
-                # Extract transportation information
-                result = nova.act(
-                    f"What is the nearest train/subway station to {property_address} and how far is it?",
-                    schema=TransportationInfo.model_json_schema()
-                )
-                
-                if result.matches_schema:
-                    transport_info = TransportationInfo.model_validate(result.parsed_response)
-                    transport_info.property_address = property_address
-                    
-                    print(f"✅ Transportation analysis completed for {property_address}")
-                    return transport_info
-                else:
-                    print(f"❌ Failed to analyze transportation for {property_address}")
-                    return None
-                    
+            # Step 1: Choose real estate site
+            site_info = self._step_choose_real_estate_site()
+            extracted_data.update(site_info)
+            self.increment_step("Real estate site selection completed")
+            
+            # Step 2: Set search location
+            location_result = self._step_set_search_location(site_info["target_site"])
+            extracted_data.update(location_result)
+            self.increment_step("Search location set")
+            
+            # Step 3: Apply property filters
+            filter_result = self._step_apply_property_filters(site_info["target_site"])
+            extracted_data.update(filter_result)
+            self.increment_step("Property filters applied")
+            
+            # Step 4: Analyze properties
+            analysis_result = self._step_analyze_properties(site_info["target_site"])
+            extracted_data.update(analysis_result)
+            self.increment_step("Property analysis completed")
+            
+            # Step 5: Check transportation
+            transport_result = self._step_check_transportation(site_info["target_site"])
+            extracted_data.update(transport_result)
+            self.increment_step("Transportation analysis completed")
+            
+            # Step 6: Extract property data
+            extraction_result = self._step_extract_property_data(site_info["target_site"])
+            extracted_data.update(extraction_result)
+            self.increment_step("Property data extraction completed")
+            
         except Exception as e:
-            print(f"❌ Error analyzing transportation for {property_address}: {e}")
-            return None
+            self.logger.error(f"Error during real estate operations: {str(e)}")
+            raise
+        
+        return extracted_data
     
-    # Analyze transportation for all properties in parallel
-    with ThreadPoolExecutor(max_workers=3) as executor:
-        future_to_property = {
-            executor.submit(analyze_property_transportation, prop): prop 
-            for prop in sample_properties
+    def _step_choose_real_estate_site(self) -> Dict[str, Any]:
+        """Step 1: Choose appropriate real estate site based on user's region."""
+        self.logger.log_step(1, "Real Estate Site Selection", "starting")
+        
+        # Get region-appropriate real estate sites
+        real_estate_sites = self.config_manager.get_optimal_sites("real_estate")
+        
+        # Choose first accessible site
+        target_site = None
+        for site_url in real_estate_sites:
+            if self.config_manager.validate_site_access(site_url):
+                target_site = {
+                    "url": site_url,
+                    "name": site_url.replace("https://", "").replace("www.", ""),
+                    "type": "real_estate",
+                    "supports_filters": True,
+                    "supports_maps": True
+                }
+                break
+        
+        if not target_site:
+            # Use fallback
+            fallback_sites = self.get_fallback_sites()
+            target_site = {
+                "url": fallback_sites[0],
+                "name": "Fallback Site",
+                "type": "fallback",
+                "supports_filters": False,
+                "supports_maps": False
+            }
+            self.add_warning("Using fallback site - limited real estate functionality")
+        
+        # Determine search location based on site and user region
+        env_info = self.config_manager.detect_environment()
+        search_locations = self._get_search_locations(target_site["name"], env_info.region)
+        target_site["search_locations"] = search_locations
+        
+        self.logger.log_step(1, "Real Estate Site Selection", "completed", f"Selected {target_site['name']}")
+        self.logger.log_data_extraction("target_site", target_site, "site_selection")
+        
+        return {"target_site": target_site}
+    
+    def _get_search_locations(self, site_name: str, region: str) -> List[str]:
+        """Get appropriate search locations based on site and region."""
+        location_mappings = {
+            "north_america": {
+                "zillow.com": ["San Francisco, CA", "New York, NY", "Austin, TX"],
+                "realtor.com": ["Los Angeles, CA", "Chicago, IL", "Miami, FL"],
+                "redfin.com": ["Seattle, WA", "Denver, CO", "Portland, OR"]
+            },
+            "europe": {
+                "rightmove.co.uk": ["London", "Manchester", "Birmingham"],
+                "immobilienscout24.de": ["Berlin", "Munich", "Hamburg"],
+                "seloger.com": ["Paris", "Lyon", "Marseille"]
+            },
+            "asia_pacific": {
+                "realestate.com.au": ["Sydney", "Melbourne", "Brisbane"],
+                "suumo.jp": ["Tokyo", "Osaka", "Kyoto"]
+            },
+            "other": ["City Center", "Downtown", "Residential Area"]
         }
         
-        for future in as_completed(future_to_property.keys()):
-            property_address = future_to_property[future]
-            try:
-                transport_info = future.result()
-                if transport_info:
-                    transportation_results.append(transport_info)
-            except Exception as e:
-                print(f"❌ Error processing {property_address}: {e}")
+        region_locations = location_mappings.get(region, location_mappings["other"])
+        if isinstance(region_locations, dict):
+            return region_locations.get(site_name, ["City Center", "Downtown"])
+        else:
+            return region_locations
     
-    # Display transportation analysis results
-    print("\n🚊 Transportation Analysis Results:")
-    print("=" * 40)
-    
-    for info in transportation_results:
-        print(f"📍 {info.property_address}")
-        if info.nearest_station:
-            print(f"   🚉 Nearest Station: {info.nearest_station}")
-        if info.distance_to_station:
-            print(f"   📏 Distance: {info.distance_to_station}")
-        if info.travel_time:
-            print(f"   ⏱️ Travel Time: {info.travel_time}")
-        print()
-    
-    return transportation_results
-
-def property_comparison_demo():
-    """
-    Demo for comparing multiple properties side by side
-    """
-    print("\n⚖️ Starting Property Comparison Demo")
-    print("=" * 45)
-    
-    try:
-        with NovaAct(
-            starting_page="https://www.zillow.com",
-            logs_directory="./demo/logs/property_comparison"
-        ) as nova:
-            print("🏠 Setting up property comparison...")
-            
-            # Search for properties
-            nova.act("search for homes for sale in San Francisco, CA")
-            
-            # Apply filters for comparison
-            nova.act("filter for properties between $500,000 - $700,000")
-            nova.act("filter for 2-3 bedroom properties")
-            
-            # Extract multiple properties for comparison
-            result = nova.act(
-                """Extract the first 3 properties for comparison including:
-                - Address
-                - Price
-                - Bedrooms/Bathrooms
-                - Square footage
-                - Key features""",
-                schema=PropertyList.model_json_schema()
-            )
-            
-            if result.matches_schema:
-                properties = PropertyList.model_validate(result.parsed_response)
-                
-                print("✅ Property Comparison Results:")
-                print("=" * 35)
-                
-                for i, prop in enumerate(properties.properties, 1):
-                    print(f"\n🏠 Property {i}:")
-                    print(f"   📍 Address: {prop.address}")
-                    print(f"   💰 Price: {prop.price}")
-                    if prop.bedrooms:
-                        print(f"   🛏️ Bedrooms: {prop.bedrooms}")
-                    if prop.bathrooms:
-                        print(f"   🚿 Bathrooms: {prop.bathrooms}")
-                    if prop.square_feet:
-                        print(f"   📐 Square Feet: {prop.square_feet}")
-                
-                # Analyze which property offers best value
-                print("\n📊 Value Analysis:")
-                print("Comparing properties based on price per square foot and features...")
-                
-                return properties
-            else:
-                print("❌ Failed to extract properties for comparison")
-                return None
-                
-    except Exception as e:
-        print(f"❌ Error during property comparison demo: {e}")
-        return None
-
-def market_analysis_demo():
-    """
-    Demo for analyzing real estate market trends
-    """
-    print("\n📈 Starting Market Analysis Demo")
-    print("=" * 40)
-    
-    markets_to_analyze = ["San Francisco, CA", "Austin, TX", "Seattle, WA"]
-    market_data = []
-    
-    try:
-        for market in markets_to_analyze:
-            print(f"📊 Analyzing market trends in {market}...")
-            
+    def _step_set_search_location(self, site_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Step 2: Set search location for property search."""
+        self.logger.log_step(2, "Search Location Setup", "starting")
+        
+        search_locations = site_info.get("search_locations", ["City Center"])
+        selected_location = search_locations[0]  # Use first location
+        
+        if site_info.get("type") == "fallback":
+            self.logger.log_step(2, "Search Location Setup", "skipped", "Fallback site doesn't support location search")
+            return {"location_result": {"skipped": True, "reason": "fallback_site"}}
+        
+        try:
             with NovaAct(
-                starting_page="https://www.zillow.com",
-                logs_directory=f"./demo/logs/market_analysis_{market.replace(', ', '_').replace(' ', '_')}"
+                starting_page=site_info["url"],
+                logs_directory="./demo/logs/real_estate_location"
             ) as nova:
-                # Search for market information
-                nova.act(f"search for homes for sale in {market}")
                 
-                # Look for market insights or trends
-                nova.act("look for market insights, price trends, or market statistics on the page")
+                # Set search location
+                nova.act(f"search for properties in {selected_location}")
+                time.sleep(3)
                 
-                # Extract market information
-                market_info = nova.act(f"What are the current market trends, average prices, and market conditions in {market}?")
+                # Verify location was set
+                result = nova.act("Are property listings visible for the searched location?", schema=BOOL_SCHEMA)
+                location_set = result.matches_schema and result.parsed_response
                 
-                market_data.append({
-                    "location": market,
-                    "analysis": market_info.response
-                })
+                location_data = {
+                    "selected_location": selected_location,
+                    "available_locations": search_locations,
+                    "location_set_successfully": location_set,
+                    "site_type": site_info.get("type", "unknown")
+                }
                 
-                print(f"✅ Market analysis completed for {market}")
+                self.logger.log_step(2, "Search Location Setup", "completed", 
+                                   f"Location '{selected_location}' set: {location_set}")
+                self.logger.log_data_extraction("location_data", location_data, "location_setup")
+                
+                return {"location_result": location_data}
+                
+        except Exception as e:
+            self.logger.log_step(2, "Search Location Setup", "failed", str(e))
+            return {
+                "location_result": {
+                    "selected_location": selected_location,
+                    "location_set_successfully": False,
+                    "error": str(e)
+                }
+            }
+    
+    def _step_apply_property_filters(self, site_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Step 3: Apply property filters."""
+        self.logger.log_step(3, "Property Filters", "starting")
         
-        # Display market analysis
-        print("\n📈 Market Analysis Results:")
-        print("=" * 30)
+        if not site_info.get("supports_filters", False):
+            self.logger.log_step(3, "Property Filters", "skipped", "Site doesn't support filters")
+            return {"filter_result": {"skipped": True, "reason": "not_supported"}}
         
-        for data in market_data:
-            print(f"\n🏙️ {data['location']}:")
-            print(f"   📊 {data['analysis'][:200]}...")
+        try:
+            with NovaAct(
+                starting_page=site_info["url"],
+                logs_directory="./demo/logs/real_estate_filters"
+            ) as nova:
+                
+                # Re-search to ensure we're on results page
+                search_locations = site_info.get("search_locations", ["City Center"])
+                nova.act(f"search for properties in {search_locations[0]}")
+                time.sleep(2)
+                
+                applied_filters = []
+                
+                # Apply price filter
+                try:
+                    nova.act("look for price filters and set a reasonable price range")
+                    applied_filters.append({
+                        "type": "price_range",
+                        "applied": True,
+                        "method": "price_filter"
+                    })
+                    time.sleep(1)
+                except Exception as e:
+                    applied_filters.append({
+                        "type": "price_range",
+                        "applied": False,
+                        "error": str(e)
+                    })
+                
+                # Apply bedroom filter
+                try:
+                    nova.act("look for bedroom filters and select 2+ bedrooms")
+                    applied_filters.append({
+                        "type": "bedrooms",
+                        "applied": True,
+                        "method": "bedroom_filter"
+                    })
+                    time.sleep(1)
+                except Exception as e:
+                    applied_filters.append({
+                        "type": "bedrooms",
+                        "applied": False,
+                        "error": str(e)
+                    })
+                
+                # Apply property type filter
+                try:
+                    nova.act("look for property type filters and select houses or apartments")
+                    applied_filters.append({
+                        "type": "property_type",
+                        "applied": True,
+                        "method": "type_filter"
+                    })
+                    time.sleep(1)
+                except Exception as e:
+                    applied_filters.append({
+                        "type": "property_type",
+                        "applied": False,
+                        "error": str(e)
+                    })
+                
+                successful_filters = len([f for f in applied_filters if f.get("applied", False)])
+                
+                filter_data = {
+                    "filters_applied": applied_filters,
+                    "successful_count": successful_filters,
+                    "total_attempted": len(applied_filters)
+                }
+                
+                self.logger.log_step(3, "Property Filters", "completed", 
+                                   f"{successful_filters}/{len(applied_filters)} filters applied")
+                self.logger.log_data_extraction("filter_data", filter_data, "property_filtering")
+                
+                return {"filter_result": filter_data}
+                
+        except Exception as e:
+            self.logger.log_step(3, "Property Filters", "failed", str(e))
+            return {"filter_result": {"failed": True, "error": str(e)}}
+    
+    def _step_analyze_properties(self, site_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Step 4: Analyze available properties."""
+        self.logger.log_step(4, "Property Analysis", "starting")
         
-        return market_data
+        try:
+            with NovaAct(
+                starting_page=site_info["url"],
+                logs_directory="./demo/logs/real_estate_analysis"
+            ) as nova:
+                
+                # Re-search to ensure we have results
+                search_locations = site_info.get("search_locations", ["City Center"])
+                nova.act(f"search for properties in {search_locations[0]}")
+                time.sleep(3)
+                
+                analysis_data = {
+                    "analysis_method": "simplified_demo",
+                    "properties_analyzed": []
+                }
+                
+                # Get general information about available properties
+                try:
+                    result = nova.act("How many property listings are visible on this page?")
+                    if result.response:
+                        analysis_data["property_count_description"] = result.response
+                    
+                    # Analyze first few properties
+                    for i in range(1, 4):  # Analyze first 3 properties
+                        try:
+                            ordinal = "first" if i == 1 else "second" if i == 2 else "third"
+                            result = nova.act(f"What are the key details of the {ordinal} property listing (price, bedrooms, location)?")
+                            if result.response:
+                                analysis_data["properties_analyzed"].append({
+                                    "position": i,
+                                    "description": result.response,
+                                    "analysis_method": "natural_language"
+                                })
+                        except:
+                            continue
+                    
+                    # Check property availability
+                    result = nova.act("Do the properties appear to be currently available for sale or rent?", schema=BOOL_SCHEMA)
+                    analysis_data["properties_available"] = result.matches_schema and result.parsed_response
+                    
+                    # Check for property images
+                    result = nova.act("Do the property listings have photos or images?", schema=BOOL_SCHEMA)
+                    analysis_data["has_property_images"] = result.matches_schema and result.parsed_response
+                    
+                except Exception as e:
+                    analysis_data["analysis_error"] = str(e)
+                
+                analyzed_count = len(analysis_data.get("properties_analyzed", []))
+                
+                self.logger.log_step(4, "Property Analysis", "completed", 
+                                   f"Analyzed {analyzed_count} properties")
+                self.logger.log_data_extraction("analysis_data", analysis_data, "property_analysis")
+                
+                return {"analysis_result": analysis_data}
+                
+        except Exception as e:
+            self.logger.log_step(4, "Property Analysis", "failed", str(e))
+            return {"analysis_result": {"failed": True, "error": str(e)}}
+    
+    def _step_check_transportation(self, site_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Step 5: Check transportation options for properties."""
+        self.logger.log_step(5, "Transportation Analysis", "starting")
         
-    except Exception as e:
-        print(f"❌ Error during market analysis demo: {e}")
-        return []
+        if not site_info.get("supports_maps", False):
+            self.logger.log_step(5, "Transportation Analysis", "skipped", "Site doesn't support maps/transportation")
+            return {"transport_result": {"skipped": True, "reason": "not_supported"}}
+        
+        try:
+            with NovaAct(
+                starting_page=site_info["url"],
+                logs_directory="./demo/logs/real_estate_transport"
+            ) as nova:
+                
+                # Re-search to ensure we have results
+                search_locations = site_info.get("search_locations", ["City Center"])
+                nova.act(f"search for properties in {search_locations[0]}")
+                time.sleep(2)
+                
+                transport_analysis = []
+                
+                # Check for transportation information
+                try:
+                    nova.act("look for transportation information, nearby transit, or commute details")
+                    
+                    # Check for public transit info
+                    result = nova.act("Is there information about public transportation or transit nearby?", schema=BOOL_SCHEMA)
+                    has_transit_info = result.matches_schema and result.parsed_response
+                    
+                    transport_analysis.append({
+                        "type": "public_transit",
+                        "information_available": has_transit_info,
+                        "method": "transit_check"
+                    })
+                    
+                    # Check for walkability information
+                    result = nova.act("Is there information about walkability or walk scores?", schema=BOOL_SCHEMA)
+                    has_walk_info = result.matches_schema and result.parsed_response
+                    
+                    transport_analysis.append({
+                        "type": "walkability",
+                        "information_available": has_walk_info,
+                        "method": "walkability_check"
+                    })
+                    
+                    # Check for nearby amenities
+                    result = nova.act("Is there information about nearby schools, shopping, or amenities?", schema=BOOL_SCHEMA)
+                    has_amenity_info = result.matches_schema and result.parsed_response
+                    
+                    transport_analysis.append({
+                        "type": "amenities",
+                        "information_available": has_amenity_info,
+                        "method": "amenity_check"
+                    })
+                    
+                except Exception as e:
+                    transport_analysis.append({
+                        "type": "general_transport",
+                        "information_available": False,
+                        "error": str(e)
+                    })
+                
+                available_info_count = len([t for t in transport_analysis if t.get("information_available", False)])
+                
+                transport_data = {
+                    "transport_analysis": transport_analysis,
+                    "available_info_count": available_info_count,
+                    "total_checks": len(transport_analysis)
+                }
+                
+                self.logger.log_step(5, "Transportation Analysis", "completed", 
+                                   f"{available_info_count}/{len(transport_analysis)} transport info types found")
+                self.logger.log_data_extraction("transport_data", transport_data, "transportation_analysis")
+                
+                return {"transport_result": transport_data}
+                
+        except Exception as e:
+            self.logger.log_step(5, "Transportation Analysis", "failed", str(e))
+            return {"transport_result": {"failed": True, "error": str(e)}}
+    
+    def _step_extract_property_data(self, site_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Step 6: Extract detailed property data."""
+        self.logger.log_step(6, "Property Data Extraction", "starting")
+        
+        try:
+            with NovaAct(
+                starting_page=site_info["url"],
+                logs_directory="./demo/logs/real_estate_extraction"
+            ) as nova:
+                
+                # Re-search to ensure we have results
+                search_locations = site_info.get("search_locations", ["City Center"])
+                nova.act(f"search for properties in {search_locations[0]}")
+                time.sleep(3)
+                
+                # Click on first property for detailed extraction
+                try:
+                    nova.act("click on the first property listing to see more details")
+                    time.sleep(3)
+                    
+                    # Extract detailed property information
+                    property_details = {}
+                    
+                    # Get property address
+                    try:
+                        result = nova.act("What is the address of this property?")
+                        property_details["address"] = result.response if result.response else "Address not found"
+                    except:
+                        property_details["address"] = "Address extraction failed"
+                    
+                    # Get property price
+                    try:
+                        result = nova.act("What is the price of this property?")
+                        property_details["price"] = result.response if result.response else "Price not found"
+                    except:
+                        property_details["price"] = "Price extraction failed"
+                    
+                    # Get property specifications
+                    try:
+                        result = nova.act("How many bedrooms and bathrooms does this property have?")
+                        property_details["bed_bath"] = result.response if result.response else "Bed/bath info not found"
+                    except:
+                        property_details["bed_bath"] = "Bed/bath extraction failed"
+                    
+                    # Get property size
+                    try:
+                        result = nova.act("What is the square footage or size of this property?")
+                        property_details["size"] = result.response if result.response else "Size not found"
+                    except:
+                        property_details["size"] = "Size extraction failed"
+                    
+                    extraction_data = {
+                        "extraction_successful": True,
+                        "property_details": property_details,
+                        "extraction_method": "detailed_view"
+                    }
+                    
+                except Exception as e:
+                    # Fallback to list view extraction
+                    extraction_data = {
+                        "extraction_successful": False,
+                        "fallback_attempted": True,
+                        "error": str(e)
+                    }
+                    
+                    try:
+                        # Try to extract from list view
+                        result = nova.act("Extract basic information about the first few properties from the list view")
+                        extraction_data["list_view_data"] = result.response if result.response else "No data extracted"
+                        extraction_data["extraction_method"] = "list_view_fallback"
+                    except:
+                        extraction_data["list_view_data"] = "List view extraction also failed"
+                
+                self.logger.log_step(6, "Property Data Extraction", "completed", 
+                                   f"Extraction successful: {extraction_data.get('extraction_successful', False)}")
+                self.logger.log_data_extraction("extraction_data", extraction_data, "property_data_extraction")
+                
+                return {"extraction_result": extraction_data}
+                
+        except Exception as e:
+            self.logger.log_step(6, "Property Data Extraction", "failed", str(e))
+            return {"extraction_result": {"failed": True, "error": str(e)}}
 
-def rental_vs_buy_analysis_demo():
-    """
-    Demo for analyzing rental vs buying options
-    """
-    print("\n🏠 Starting Rental vs Buy Analysis Demo")
+
+def run_real_estate_demo():
+    """Run the real estate demo."""
+    print("🏠 Starting Enhanced Real Estate Demo")
     print("=" * 50)
     
-    try:
-        # Analyze buying options
-        print("💰 Analyzing buying options...")
-        with NovaAct(
-            starting_page="https://www.zillow.com",
-            logs_directory="./demo/logs/buy_analysis"
-        ) as nova:
-            nova.act("search for homes for sale in San Francisco, CA")
-            nova.act("filter for 2 bedroom properties")
+    # Create demo instance
+    demo = RealEstateDemo()
+    
+    # Run demo
+    result = demo.run()
+    
+    # Print results
+    if result.success:
+        print("✅ Demo completed successfully!")
+        print(f"⏱️  Execution time: {result.execution_time:.2f} seconds")
+        print(f"📊 Steps completed: {result.steps_completed}/{result.steps_total}")
+        
+        if result.data_extracted:
+            print("\n📋 Real Estate Search Summary:")
             
-            buy_result = nova.act("What are the average prices for 2-bedroom homes for sale?")
-            buy_info = buy_result.response
-        
-        # Analyze rental options
-        print("🏠 Analyzing rental options...")
-        with NovaAct(
-            starting_page="https://www.apartments.com",
-            logs_directory="./demo/logs/rental_analysis"
-        ) as nova:
-            nova.act("search for 2 bedroom apartments for rent in San Francisco, CA")
+            # Site and location info
+            if "target_site" in result.data_extracted:
+                site = result.data_extracted["target_site"]
+                print(f"   🌐 Site used: {site.get('name', 'Unknown')}")
+                locations = site.get("search_locations", [])
+                if locations:
+                    print(f"   📍 Available locations: {', '.join(locations[:3])}")
             
-            rent_result = nova.act("What are the average rental prices for 2-bedroom apartments?")
-            rent_info = rent_result.response
-        
-        # Display comparison
-        print("\n📊 Rental vs Buy Analysis:")
-        print("=" * 30)
-        print(f"🏠 Buying: {buy_info[:150]}...")
-        print(f"🏠 Renting: {rent_info[:150]}...")
-        
-        return {"buying": buy_info, "renting": rent_info}
-        
-    except Exception as e:
-        print(f"❌ Error during rental vs buy analysis: {e}")
-        return {}
+            # Location setup
+            if "location_result" in result.data_extracted:
+                location = result.data_extracted["location_result"]
+                if not location.get("skipped"):
+                    selected = location.get("selected_location", "Unknown")
+                    success = location.get("location_set_successfully", False)
+                    print(f"   🎯 Search location: {selected} ({'✅ Set' if success else '❌ Failed'})")
+            
+            # Filter results
+            if "filter_result" in result.data_extracted:
+                filters = result.data_extracted["filter_result"]
+                if not filters.get("skipped"):
+                    successful = filters.get("successful_count", 0)
+                    total = filters.get("total_attempted", 0)
+                    print(f"   🎛️  Property filters: {successful}/{total} applied")
+            
+            # Analysis results
+            if "analysis_result" in result.data_extracted:
+                analysis = result.data_extracted["analysis_result"]
+                if not analysis.get("failed"):
+                    analyzed = len(analysis.get("properties_analyzed", []))
+                    available = analysis.get("properties_available", False)
+                    print(f"   🔍 Properties analyzed: {analyzed}")
+                    print(f"   ✅ Properties available: {available}")
+            
+            # Transportation info
+            if "transport_result" in result.data_extracted:
+                transport = result.data_extracted["transport_result"]
+                if not transport.get("skipped"):
+                    available = transport.get("available_info_count", 0)
+                    total = transport.get("total_checks", 0)
+                    print(f"   🚌 Transportation info: {available}/{total} types available")
+            
+            # Extraction results
+            if "extraction_result" in result.data_extracted:
+                extraction = result.data_extracted["extraction_result"]
+                success = extraction.get("extraction_successful", False)
+                method = extraction.get("extraction_method", "unknown")
+                print(f"   📄 Data extraction: {'✅ Success' if success else '❌ Failed'} ({method})")
+    else:
+        print("❌ Demo encountered issues:")
+        for error in result.errors:
+            print(f"   • {error.error_type}: {error.message}")
+    
+    if result.warnings:
+        print("⚠️  Warnings:")
+        for warning in result.warnings:
+            print(f"   • {warning}")
+    
+    print(f"📄 Detailed logs: {result.log_path}")
+    
+    return result
+
 
 def main():
-    """Main function to run all real estate demos"""
-    print("Nova Act Real Estate Demo Suite")
-    print("===============================")
+    """Main function to run the demo."""
+    print("Nova Act Enhanced Real Estate Demo")
+    print("=" * 50)
     
-    # Check for API key
-    if not os.getenv('NOVA_ACT_API_KEY'):
-        print("❌ Please set NOVA_ACT_API_KEY environment variable")
-        print("   export NOVA_ACT_API_KEY='your_api_key'")
-        sys.exit(1)
+    # Run the demo
+    result = run_real_estate_demo()
     
-    # Create logs directory
-    os.makedirs("./demo/logs", exist_ok=True)
-    
-    print("\n🏠 Real Estate Demo Options:")
-    print("1. Property search across multiple locations")
-    print("2. Detailed property information extraction")
-    print("3. Transportation analysis for properties")
-    print("4. Property comparison")
-    print("5. Market trend analysis")
-    print("6. Rental vs buy analysis")
-    print("7. Run all demos")
-    
-    choice = input("\nSelect demo (1-7): ").strip()
-    
-    if choice == "1":
-        search_properties_demo()
-    elif choice == "2":
-        property_details_extraction_demo()
-    elif choice == "3":
-        transportation_analysis_demo()
-    elif choice == "4":
-        property_comparison_demo()
-    elif choice == "5":
-        market_analysis_demo()
-    elif choice == "6":
-        rental_vs_buy_analysis_demo()
-    elif choice == "7":
-        # Run all demos
-        results = []
-        results.append(search_properties_demo())
-        results.append(property_details_extraction_demo())
-        results.append(transportation_analysis_demo())
-        results.append(property_comparison_demo())
-        results.append(market_analysis_demo())
-        results.append(rental_vs_buy_analysis_demo())
-        
-        successful = sum(1 for result in results if result)
-        total = len(results)
-        
-        print(f"\n📊 Real Estate Demo Summary: {successful}/{total} successful")
-        
-        if successful == total:
-            print("🎉 All real estate demos completed successfully!")
-            print("💡 This demonstrates Nova Act's capability for complex data extraction and analysis workflows")
-        else:
-            print("⚠️ Some demos encountered issues. Check the logs for details.")
+    if result.success:
+        print("\n🎉 Real estate demo completed successfully!")
+        print("This demo showcased:")
+        print("  • Geographic-aware real estate site selection")
+        print("  • Location-based property searching")
+        print("  • Multi-criteria property filtering")
+        print("  • Transportation and amenity analysis")
+        print("  • Detailed property data extraction")
     else:
-        print("❌ Invalid choice. Please select 1-7.")
+        print("\n⚠️ Demo encountered some issues, but this demonstrates:")
+        print("  • Robust error handling in real estate operations")
+        print("  • Graceful degradation when sites have restrictions")
+        print("  • Adaptive strategies for different regional sites")
+    
+    print("\n💡 Production Tips:")
+    print("  • Implement property data validation and normalization")
+    print("  • Use structured schemas for consistent data extraction")
+    print("  • Consider market trend analysis and price predictions")
+    print("  • Implement property alert systems for new listings")
+    print("  • Add mortgage calculator and affordability analysis")
+
 
 if __name__ == "__main__":
     main()
