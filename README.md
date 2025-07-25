@@ -1,5 +1,4 @@
-# 🚀 Nova Act Enhanced Demo Suite
-
+# 🚀 Nova Act Demo
 [![Nova Act](https://img.shields.io/badge/Nova%20Act-1.0.4013.0-blue)](https://nova.amazon.com/act)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-green)](https://python.org)
 [![Framework](https://img.shields.io/badge/Framework-Production--Ready-brightgreen)](https://github.com/vanhoangkha/nova-act-samples)
